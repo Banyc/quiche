@@ -42,7 +42,8 @@ pub const PRIORITY_UPDATE_FRAME_PUSH_TYPE_ID: u64 = 0xF0701;
 pub const SETTINGS_QPACK_MAX_TABLE_CAPACITY: u64 = 0x1;
 pub const SETTINGS_MAX_FIELD_SECTION_SIZE: u64 = 0x6;
 pub const SETTINGS_QPACK_BLOCKED_STREAMS: u64 = 0x7;
-pub const SETTINGS_H3_DATAGRAM: u64 = 0x276;
+pub const SETTINGS_H3_DATAGRAM_00: u64 = 0x276;
+pub const SETTINGS_H3_DATAGRAM: u64 = 0x33;
 
 // Permit between 16 maximally-encoded and 128 minimally-encoded SETTINGS.
 const MAX_SETTINGS_PAYLOAD_SIZE: usize = 256;
@@ -197,6 +198,8 @@ impl Frame {
                 }
 
                 if let Some(val) = h3_datagram {
+                    len += octets::varint_len(SETTINGS_H3_DATAGRAM_00);
+                    len += octets::varint_len(*val);
                     len += octets::varint_len(SETTINGS_H3_DATAGRAM);
                     len += octets::varint_len(*val);
                 }
@@ -225,6 +228,8 @@ impl Frame {
                 }
 
                 if let Some(val) = h3_datagram {
+                    b.put_varint(SETTINGS_H3_DATAGRAM_00)?;
+                    b.put_varint(*val as u64)?;
                     b.put_varint(SETTINGS_H3_DATAGRAM)?;
                     b.put_varint(*val as u64)?;
                 }
@@ -520,7 +525,7 @@ fn parse_settings_frame(
                 qpack_blocked_streams = Some(value);
             },
 
-            SETTINGS_H3_DATAGRAM => {
+            SETTINGS_H3_DATAGRAM_00 | SETTINGS_H3_DATAGRAM => {
                 if value > 1 {
                     return Err(super::Error::SettingsError);
                 }
@@ -680,6 +685,7 @@ mod tests {
             (SETTINGS_MAX_FIELD_SECTION_SIZE, 0),
             (SETTINGS_QPACK_MAX_TABLE_CAPACITY, 0),
             (SETTINGS_QPACK_BLOCKED_STREAMS, 0),
+            (SETTINGS_H3_DATAGRAM_00, 0),
             (SETTINGS_H3_DATAGRAM, 0),
         ];
 
@@ -692,7 +698,7 @@ mod tests {
             raw: Some(raw_settings),
         };
 
-        let frame_payload_len = 9;
+        let frame_payload_len = 11;
         let frame_header_len = 2;
 
         let wire_len = {
@@ -730,6 +736,7 @@ mod tests {
             (SETTINGS_MAX_FIELD_SECTION_SIZE, 0),
             (SETTINGS_QPACK_MAX_TABLE_CAPACITY, 0),
             (SETTINGS_QPACK_BLOCKED_STREAMS, 0),
+            (SETTINGS_H3_DATAGRAM_00, 0),
             (SETTINGS_H3_DATAGRAM, 0),
             (33, 33),
         ];
@@ -745,7 +752,7 @@ mod tests {
             raw: Some(raw_settings),
         };
 
-        let frame_payload_len = 11;
+        let frame_payload_len = 13;
         let frame_header_len = 2;
 
         let wire_len = {
@@ -806,7 +813,8 @@ mod tests {
     fn settings_h3_dgram_only() {
         let mut d = [42; 128];
 
-        let raw_settings = vec![(SETTINGS_H3_DATAGRAM, 1)];
+        let raw_settings =
+            vec![(SETTINGS_H3_DATAGRAM_00, 1), (SETTINGS_H3_DATAGRAM, 1)];
 
         let frame = Frame::Settings {
             max_field_section_size: None,
@@ -817,7 +825,7 @@ mod tests {
             raw: Some(raw_settings),
         };
 
-        let frame_payload_len = 3;
+        let frame_payload_len = 5;
         let frame_header_len = 2;
 
         let wire_len = {
@@ -851,7 +859,7 @@ mod tests {
             raw: Default::default(),
         };
 
-        let frame_payload_len = 3;
+        let frame_payload_len = 5;
         let frame_header_len = 2;
 
         let wire_len = {
